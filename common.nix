@@ -200,6 +200,8 @@
     '';
   };
 
+  services.tailscale.enable = true;
+
   services.xserver.enable = false;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 }
