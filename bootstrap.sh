@@ -31,6 +31,46 @@ msg()      { echo -e "${COLOR1}$1${ENDCOLOR}"; }
 prompt()   { echo -ne "${COLOR_INPUT}$1${ENDCOLOR}"; }
 die()      { echo -e "\e[31m$*\e[0m" >&2; exit 1; }
 have()     { command -v "$1" >/dev/null 2>&1; }
+read_tty() {
+  # usage: read_tty VAR "Prompt: " "default"
+  local __var="$1"
+  local __prompt="$2"
+  local __default="${3-}"
+  local __line=""
+
+  # write prompt to the real terminal
+  printf "%b" "${COLOR_INPUT}${__prompt}${ENDCOLOR}" > /dev/tty
+
+  # read from the real terminal; don't let failure kill script
+  if ! IFS= read -r __line < /dev/tty; then
+    __line=""
+  fi
+
+  if [[ -z "$__line" && -n "$__default" ]]; then
+    __line="$__default"
+  fi
+
+  printf -v "$__var" '%s' "$__line"
+}
+read_secret_tty() {
+  # usage: read_secret_tty VAR "Prompt: "
+  local __var="$1"
+  local __prompt="$2"
+  local __line=""
+
+  printf "%s" "$__prompt" > /dev/tty
+  # -s = silent; again guard against failure
+  if ! read -r -s __line < /dev/tty; then
+    __line=""
+  fi
+  echo > /dev/tty
+
+  printf -v "$__var" '%s' "$__line"
+}
+run_in_tty() {
+  # Run a command with stdin/stdout/stderr attached to the real terminal
+  "$@" </dev/tty >/dev/tty 2>&1
+}
 
 TARGET_ETC="/etc/nixos"
 REPO_URL="https://github.com/roguenand/fleetcommandav-nixos.git"
@@ -65,9 +105,7 @@ determine_hostname() {
   else
     local default_hostname
     default_hostname="$(hostname)"
-    prompt "Enter hostname for this box [${default_hostname}]: "
-    read -r HOSTNAME
-    HOSTNAME="${HOSTNAME:-$default_hostname}"
+    read_tty HOSTNAME "Enter hostname for this box [${default_hostname}]: " "$default_hostname"
   fi
 
   if [[ -z "$HOSTNAME" ]]; then
@@ -89,10 +127,8 @@ ensure_repo() {
     git clone "$REPO_URL" "$TARGET_ETC"
   else
     msg "/etc/nixos is already a git repo."
-    prompt "Pull latest changes from origin? [y/N]: "
     local pull
-    read -r pull
-    pull="${pull:-N}"
+    read_tty pull "Pull latest changes from origin? [y/N]: " "N"
     if [[ "$pull" =~ ^[Yy]$ ]]; then
       msg "Pulling latest changes..."
       (cd "$TARGET_ETC" && git pull --ff-only || true)
@@ -142,11 +178,11 @@ EOF
 edit_host_nix() {
   msg "Opening /etc/nixos/host.nix in an editor. Edit as needed, then save & exit."
   if [[ -n "${EDITOR:-}" ]] && command -v "$EDITOR" >/dev/null 2>&1; then
-    "$EDITOR" host.nix
+    run_in_tty "$EDITOR" host.nix
   else
     for ed in micro nano vim vi; do
       if command -v "$ed" >/dev/null 2>&1; then
-        "$ed" host.nix
+        run_in_tty "$ed" host.nix
         break
       fi
     done
@@ -161,8 +197,8 @@ setup_tailscale_auth() {
     echo
     msg "Tailscale/Headscale auth key not found for this host."
     echo "(You can generate a one-time key from the admin panel.)"
-    read -rsp "Auth key: " AUTH_KEY
-    echo
+    local AUTH_KEY=""
+    read_secret_tty AUTH_KEY "Auth key: "
 
     if [[ -z "$AUTH_KEY" ]]; then
       echo "No auth key entered; Tailscale will not auto-connect." >&2
