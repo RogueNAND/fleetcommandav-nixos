@@ -169,6 +169,7 @@
   # Make sure base directory exists
   systemd.tmpfiles.rules = [
     "d /srv 0755 fcav users -"
+    "d /var/lib/fcav/secrets 0700 root root -"
   ];
 
   systemd.services.ensure-fleetcommandav = {
@@ -200,7 +201,7 @@
     '';
   };
 
-  services.tailscale.authKeyFile = "/run/secrets/tailscale-authkey";
+  services.tailscale.authKeyFile = "/var/lib/fcav/secrets/tailscale-authkey";
   services.tailscale.useRoutingFeatures = "both";
 
   services.xserver.enable = false;

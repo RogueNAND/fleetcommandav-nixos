@@ -74,7 +74,7 @@ run_in_tty() {
 
 TARGET_ETC="/etc/nixos"
 REPO_URL="https://github.com/roguenand/fleetcommandav-nixos.git"
-SECRET_PATH="/run/secrets"
+SECRET_PATH="/var/lib/fcav/secrets"
 AUTH_FILE="${SECRET_PATH}/tailscale-authkey"
 
 HOSTNAME=""
@@ -181,7 +181,7 @@ ensure_host_nix() {
     local lan_subnet="${LAN_SUBNET:-192.168.10.0/24}"
 
     cat > host.nix <<EOF
-# run "nixos-rebuild switch" to rebuild system after modifying this file
+# run "sudo nixos-rebuild switch" to rebuild system after modifying this file
 
 { config, pkgs, lib, modulesPath, ... }:
 
@@ -208,7 +208,7 @@ ensure_host_nix() {
       "--ssh"
       "--advertise-exit-node"
       "--hostname=\${config.networking.hostName}"
-      # "--advertise-routes=\${config.fcav.virtualSubnet.virtualSubnet}"  # advertise virtual subnet
+      "--advertise-routes=\${config.fcav.virtualSubnet.virtualSubnet}"  # advertise virtual subnet
       # "--advertise-routes=\${config.fcav.virtualSubnet.localSubnet}"    # direct LAN route (not recommended with overlaps)
     ];
   };
