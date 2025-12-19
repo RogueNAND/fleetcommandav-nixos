@@ -10,7 +10,7 @@ in {
     # The interface that is connected to the client's LAN
     lanInterface = mkOption {
       type = types.str;
-      default = "auto"
+      default = "auto";
       description = ''
         Name of the interface connected to the client's LAN (e.g. \"enp3s0\").
 
