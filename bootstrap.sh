@@ -78,8 +78,6 @@ SECRET_PATH="/run/secrets"
 AUTH_FILE="${SECRET_PATH}/tailscale-authkey"
 
 HOSTNAME=""
-LAN_IFACE=""
-LAN_SUBNET=""
 
 # Functions --------------------------------------------------------------------
 
@@ -145,40 +143,9 @@ generate_hw_config() {
   nixos-generate-config --show-hardware-config > hardware-configuration.nix
 }
 
-detect_lan_defaults() {
-  # Try to detect the primary LAN interface (default route)
-  if ! have ip; then
-    return
-  fi
-
-  # Get default interface (the one with the default route)
-  local iface
-  iface=$(ip route show default 0.0.0.0/0 2>/dev/null | awk '/default/ {print $5; exit}')
-  if [[ -z "$iface" ]]; then
-    return
-  fi
-
-  # Try to get the subnet for that interface from the routing table
-  # Example line: "192.168.10.0/24 dev enp3s0 proto kernel scope link src 192.168.10.50"
-  local subnet
-  subnet=$(ip route show dev "$iface" 2>/dev/null | awk '/proto kernel/ && /src/ {print $1; exit}')
-
-  # If that fails, fall back to the addr list (gives IP/prefix, not network)
-  if [[ -z "$subnet" ]]; then
-    subnet=$(ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')
-  fi
-
-  LAN_IFACE="$iface"
-  LAN_SUBNET="$subnet"
-}
-
 ensure_host_nix() {
   if [[ ! -f host.nix ]]; then
     msg "host.nix not found, creating a new one."
-
-    # Defaults with fallbacks if detection failed
-    local lan_if="${LAN_IFACE:-enp3s0}"
-    local lan_subnet="${LAN_SUBNET:-192.168.10.0/24}"
 
     cat > host.nix <<EOF
 # run "nixos-rebuild switch" to rebuild system after modifying this file
@@ -194,7 +161,6 @@ ensure_host_nix() {
 
   fcav.virtualSubnet = {
     enable = true;
-    lanInterface = "${lan_if}";
     localSubnet = "${lan_subnet}";
     virtualSubnet = "100.64.42.0/24";  # TODO: adjust per site
     lanToTailnet = false;  # false = tailnet->LAN only; true = allow LAN->tailnet
@@ -209,7 +175,7 @@ ensure_host_nix() {
       "--advertise-exit-node"
       "--hostname=\${config.networking.hostName}"
       # "--advertise-routes=\${config.fcav.virtualSubnet.virtualSubnet}"  # advertise virtual subnet
-      # "--advertise-routes=\${config.fcav.virtualSubnet.localSubnet}"                         # direct LAN route (not recommended with overlaps)
+      # "--advertise-routes=\${config.fcav.virtualSubnet.localSubnet}"    # direct LAN route (not recommended with overlaps)
     ];
   };
 
@@ -285,7 +251,6 @@ main() {
   determine_hostname "$@"
   ensure_repo
   generate_hw_config
-  detect_lan_defaults
   ensure_host_nix
   edit_host_nix
   setup_tailscale_auth

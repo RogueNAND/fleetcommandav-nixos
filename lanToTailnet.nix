@@ -10,7 +10,12 @@ in {
     # The interface that is connected to the client's LAN
     lanInterface = mkOption {
       type = types.str;
-      description = "Name of the interface connected to the client's LAN (e.g. \"enp3s0\").";
+      default = "auto"
+      description = ''
+        Name of the interface connected to the client's LAN (e.g. \"enp3s0\").
+
+        Use "auto" (default) to pick the interface that currently has the default route.
+      '';
       example = "enp3s0";
     };
 
@@ -73,13 +78,6 @@ in {
         '';
       }
       {
-        assertion = !cfg.enable || builtins.hasAttr cfg.lanInterface config.networking.interfaces;
-        message = ''
-          fcav.virtualSubnet.lanInterface "${cfg.lanInterface}"
-          does not exist on this system.
-        '';
-      }
-      {
         assertion = !cfg.enable || (lib.isString cfg.localSubnet && lib.hasInfix "/" cfg.localSubnet);
         message = ''
           fcav.virtualSubnet.localSubnet must be CIDR notation,
@@ -103,43 +101,49 @@ in {
           #!/bin/sh
           set -e
 
+          # Ensure network interface exists
+          IP=${pkgs.iproute2}/bin/ip
+          LAN_IF="${cfg.lanInterface}"
+          if [ "$LAN_IF" = "auto" ]; then
+            LAN_IF="$($IP route show default 0.0.0.0/0 2>/dev/null | awk '/default/ {print $5; exit}')"
+          fi
+          if [ -z "$LAN_IF" ]; then
+            echo "ERROR: Could not determine lanInterface (no default route found)." >&2
+            exit 1
+          fi
+          if ! $IP link show "$LAN_IF" >/dev/null 2>&1; then
+            echo "ERROR: LAN interface '$LAN_IF' does not exist." >&2
+            echo "Available interfaces:" >&2
+            $IP -o link show | awk -F': ' '{print "  - "$2}' >&2
+            exit 1
+          fi
+
           IPT=${pkgs.iptables}/bin/iptables
 
           # Clean up any old rules for idempotency
           $IPT -t nat -D PREROUTING -i ${cfg.tailscaleInterface} -d ${cfg.virtualSubnet} -j NETMAP --to ${cfg.localSubnet} 2>/dev/null || true
-          $IPT -t nat -D POSTROUTING -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -j MASQUERADE 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.tailscaleInterface} -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j DROP 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j ACCEPT 2>/dev/null || true
+          $IPT -t nat -D POSTROUTING -o $LAN_IF -s ${cfg.virtualSubnet} -j MASQUERADE 2>/dev/null || true
+          $IPT -D FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT 2>/dev/null || true
+          $IPT -D FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j DROP 2>/dev/null || true
+          $IPT -D FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j ACCEPT 2>/dev/null || true
 
           # Map virtual subnet -> real LAN (preserve host bits)
           $IPT -t nat -A PREROUTING -i ${cfg.tailscaleInterface} -d ${cfg.virtualSubnet} -j NETMAP --to ${cfg.localSubnet}
 
           # SNAT traffic from the virtual subnet when leaving to LAN
-          $IPT -t nat -A POSTROUTING -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -j MASQUERADE
+          $IPT -t nat -A POSTROUTING -o $LAN_IF -s ${cfg.virtualSubnet} -j MASQUERADE
 
           # Allow forwarding from Tailscale -> LAN (virtual -> real)
-          $IPT -A FORWARD -i ${cfg.tailscaleInterface} -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT
+          $IPT -A FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT
 
           # Configure LAN -> Tailscale behavior based on lanToTailnet
           if [ "${toString cfg.lanToTailnet}" = "true" ]; then
             # Gateway mode: allow LAN to reach tailnet
-            $IPT -A FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j ACCEPT
+            $IPT -A FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j ACCEPT
           else
             # Translator mode: block LAN -> tailnet
-            $IPT -A FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j DROP
+            $IPT -A FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j DROP
           fi
-        '';
-
-        ExecStop = ''
-          #!/bin/sh
-          IPT=${pkgs.iptables}/bin/iptables
-
-          $IPT -t nat -D PREROUTING -i ${cfg.tailscaleInterface} -d ${cfg.virtualSubnet} -j NETMAP --to ${cfg.localSubnet} 2>/dev/null || true
-          $IPT -t nat -D POSTROUTING -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -j MASQUERADE 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.tailscaleInterface} -o ${cfg.lanInterface} -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j DROP 2>/dev/null || true
-          $IPT -D FORWARD -i ${cfg.lanInterface} -o ${cfg.tailscaleInterface} -j ACCEPT 2>/dev/null || true
         '';
       };
     };
