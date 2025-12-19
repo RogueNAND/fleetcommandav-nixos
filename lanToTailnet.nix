@@ -106,7 +106,7 @@ in {
         IP=${pkgs.iproute2}/bin/ip
         LAN_IF="${cfg.lanInterface}"
         if [ "$LAN_IF" = "auto" ]; then
-          LAN_IF="$($IP route show default 0.0.0.0/0 2>/dev/null | awk '/default/ {print $5; exit}')"
+          LAN_IF="$($IP route show default 0.0.0.0/0 2>/dev/null | ${pkgs.gawk}/bin/awk '/default/ {print $5; exit}')"
         fi
         if [ -z "$LAN_IF" ]; then
           echo "ERROR: Could not determine lanInterface (no default route found)." >&2
@@ -115,7 +115,7 @@ in {
         if ! $IP link show "$LAN_IF" >/dev/null 2>&1; then
           echo "ERROR: LAN interface '$LAN_IF' does not exist." >&2
           echo "Available interfaces:" >&2
-          $IP -o link show | awk -F': ' '{print "  - "$2}' >&2
+          $IP -o link show | ${pkgs.gawk}/bin/awk -F': ' '{print "  - "$2}' >&2
           exit 1
         fi
 
@@ -124,7 +124,7 @@ in {
         # Clean up any old rules for idempotency
         $IPT -t nat -D PREROUTING -i ${cfg.tailscaleInterface} -d ${cfg.virtualSubnet} -j NETMAP --to ${cfg.localSubnet} 2>/dev/null || true
         $IPT -t nat -D POSTROUTING -o $LAN_IF -s 100.64.0.0/10 -d ${cfg.localSubnet} -j MASQUERADE 2>/dev/null || true
-        $IPT -D FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT 2>/dev/null || true
+        $IPT -D FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s 100.64.0.0/10 -d ${cfg.localSubnet} -j ACCEPT 2>/dev/null || true
         $IPT -D FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j DROP 2>/dev/null || true
         $IPT -D FORWARD -i $LAN_IF -o ${cfg.tailscaleInterface} -j ACCEPT 2>/dev/null || true
 
@@ -135,7 +135,7 @@ in {
         $IPT -t nat -A POSTROUTING -o $LAN_IF -s 100.64.0.0/10 -d ${cfg.localSubnet} -j MASQUERADE
 
         # Allow forwarding from Tailscale -> LAN (virtual -> real)
-        $IPT -A FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s ${cfg.virtualSubnet} -d ${cfg.localSubnet} -j ACCEPT
+        $IPT -A FORWARD -i ${cfg.tailscaleInterface} -o $LAN_IF -s 100.64.0.0/10 -d ${cfg.localSubnet} -j ACCEPT
 
         # Configure LAN -> Tailscale behavior based on lanToTailnet
         if [ "${toString cfg.lanToTailnet}" = "true" ]; then

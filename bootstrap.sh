@@ -196,7 +196,7 @@ ensure_host_nix() {
     enable = true;
     # lanInterface = "${lan_if}";  # defaults to "auto"
     localSubnet = "${lan_subnet}";
-    virtualSubnet = "100.64.42.0/24";  # TODO: adjust per site
+    virtualSubnet = "10.255.0.0/24";  # TODO: adjust per site
     lanToTailnet = false;  # false = tailnet->LAN only; true = allow LAN->tailnet
   };
 

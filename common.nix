@@ -1,6 +1,12 @@
 # /etc/nixos/common.nix
 { config, pkgs, lib, ... }:  # lib is for cockpit bug workaround
 
+let
+  ts = config.services.tailscale;
+  tsFlags = ts.extraUpFlags or [];
+  tsFlagsStr = lib.concatStringsSep " " (map lib.escapeShellArg tsFlags);
+  tsAuthFile = ts.authKeyFile or null;
+in
 {
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -198,6 +204,38 @@
       #  # optional: hard-reset to main
       #  git reset --hard origin/main
       fi
+    '';
+  };
+
+systemd.services.fcav-tailscale-up = lib.mkIf ts.enable {
+    description = "FCAV: run tailscale up with Nix flags at boot";
+    after = [ "network-online.target" "tailscaled.service" ];
+    wants = [ "network-online.target" "tailscaled.service" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig.Type = "oneshot";
+    path = [ pkgs.tailscale pkgs.coreutils ];
+
+    script = ''
+      set -euo pipefail
+
+      # If authKeyFile is set, require it to exist before running up.
+      ${lib.optionalString (tsAuthFile != null) ''
+      AUTH=${lib.escapeShellArg tsAuthFile}
+      if [ ! -s "$AUTH" ]; then
+        echo "Tailscale auth key not present at $AUTH; skipping tailscale up."
+        exit 0
+      fi
+      ''}
+
+      # Wait briefly for tailscaled
+      for i in $(seq 1 10); do
+        tailscale status >/dev/null 2>&1 && break || true
+        sleep 1
+      done
+
+      echo "Running: tailscale up ${lib.optionalString (tsAuthFile != null) "--authkey file:$AUTH"} ${tsFlagsStr}"
+      tailscale up ${lib.optionalString (tsAuthFile != null) "--authkey file:$AUTH"} ${tsFlagsStr}
     '';
   };
 
