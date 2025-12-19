@@ -52,6 +52,42 @@ in {
   };
 
   config = mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = !cfg.enable || config.services.tailscale.useRoutingFeatures == "both";
+        message = ''
+          fcav.virtualSubnet.enable = true requires:
+            services.tailscale.useRoutingFeatures = "both";
+        '';
+      }
+      {
+        assertion = !cfg.enable || lib.any
+            (flag: lib.hasPrefix "--advertise-routes=${cfg.virtualSubnet}" flag)
+            config.services.tailscale.extraUpFlags;
+        message = ''
+          fcav.virtualSubnet.enable = true but the virtual subnet
+          "${cfg.virtualSubnet}" is not advertised via Tailscale.
+
+          Add:
+            "--advertise-routes=${cfg.virtualSubnet}"
+        '';
+      }
+      {
+        assertion = !cfg.enable || builtins.hasAttr cfg.lanInterface config.networking.interfaces;
+        message = ''
+          fcav.virtualSubnet.lanInterface "${cfg.lanInterface}"
+          does not exist on this system.
+        '';
+      }
+      {
+        assertion = !cfg.enable || (lib.isString cfg.localSubnet && lib.hasInfix "/" cfg.localSubnet);
+        message = ''
+          fcav.virtualSubnet.localSubnet must be CIDR notation,
+          e.g. "192.168.10.0/24".
+        '';
+      }
+    ];
+
     # Allow forwarding in the kernel
     boot.kernel.sysctl."net.ipv4.ip_forward" = true;
 
