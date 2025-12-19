@@ -200,7 +200,8 @@
     '';
   };
 
-  services.tailscale.enable = true;
+  services.tailscale.authKeyFile = "/run/secrets/tailscale-authkey";
+  services.tailscale.useRoutingFeatures = "both";
 
   services.xserver.enable = false;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
