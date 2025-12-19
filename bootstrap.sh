@@ -262,7 +262,7 @@ check_tailscale() {
   msg "Checking Tailscale authentication state..."
   local ok=0
   for _ in {1..10}; do
-    if tailscale status 2>&1 | grep -q "Logged in as"; then
+    if tailscale ip -4 >/dev/null 2>&1 && tailscale ip -4 | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
       ok=1
       break
     fi
@@ -270,10 +270,11 @@ check_tailscale() {
   done
 
   if [[ "$ok" -eq 1 ]]; then
-    msg "Tailscale authenticated successfully."
+    msg "Tailscale appears up (IPv4: $(tailscale ip -4))."
   else
-    msg "Tailscale does not appear to be logged in (or status not yet updated)."
-    msg "You can re-run manually with:"
+    msg "Tailscale does not appear to be up yet."
+    msg "Try:"
+    msg "  sudo tailscale status"
     msg "  sudo tailscale up"
   fi
 }
