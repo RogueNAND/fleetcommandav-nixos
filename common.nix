@@ -2,10 +2,6 @@
 { config, pkgs, lib, ... }:  # lib is for cockpit bug workaround
 
 let
-  ts = config.services.tailscale;
-  tsFlags = ts.extraUpFlags or [];
-  tsFlagsStr = lib.concatStringsSep " " (map lib.escapeShellArg tsFlags);
-  tsAuthFile = ts.authKeyFile or null;
   sshKeysUrl = config.fleetcommand.sshKeysUrl or null;
   userPasswordHashFile = "/var/lib/fleetcommand/secrets/fleetcommand.passwd";
 in
@@ -42,13 +38,16 @@ in
   ############
 
 
-  users.users.fleetcommand = {
-    isNormalUser = true;
-    uid = 1000;
-    description = "fleetcommand";
-    extraGroups = [ "networkmanager" "wheel" "docker" ];
-    hashedPasswordFile = userPasswordHashFile;
-  };
+  users.users.fleetcommand =
+    {
+      isNormalUser = true;
+      uid = 1000;
+      description = "fleetcommand";
+      extraGroups = [ "networkmanager" "wheel" "docker" ];
+    }
+    // lib.optionalAttrs (builtins.pathExists userPasswordHashFile) {
+      hashedPasswordFile = userPasswordHashFile;
+    };
 
   security.sudo.enable = true;
   security.sudo.wheelNeedsPassword = true;
@@ -57,7 +56,7 @@ in
   services.openssh = {
     enable = true;
     settings = {
-      PasswordAuthentication = true;  # TODO: use keys
+      PasswordAuthentication = sshKeysUrl == null;
       PermitRootLogin = "no";
     };
   };

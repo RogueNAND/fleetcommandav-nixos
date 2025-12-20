@@ -133,7 +133,7 @@ ensure_repo() {
     local cont
     read_tty cont "Continue? [y/N]: " "N"
     if [[ "$cont" =~ ^[Yy]$ ]]; then
-      msg "Pulling latest changes..."
+      msg "Continuing without pulling. Update manually if needed."
     fi
   fi
 
