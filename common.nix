@@ -6,8 +6,16 @@ let
   tsFlags = ts.extraUpFlags or [];
   tsFlagsStr = lib.concatStringsSep " " (map lib.escapeShellArg tsFlags);
   tsAuthFile = ts.authKeyFile or null;
+  sshKeysUrl = config.fleetcommand.sshKeysUrl or null;
+  userPasswordHashFile = "/var/lib/fleetcommand/secrets/fleetcommand.passwd";
 in
 {
+  options.fleetcommand.sshKeysUrl = lib.mkOption {
+    type = lib.types.nullOr lib.types.str;
+    default = null;
+    description = "URL to fetch SSH authorized_keys for the fleetcommand user.";
+  };
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -39,7 +47,7 @@ in
     uid = 1000;
     description = "fleetcommand";
     extraGroups = [ "networkmanager" "wheel" "docker" ];
-    initialPassword = "fleetcommand";
+    hashedPasswordFile = userPasswordHashFile;
   };
 
   security.sudo.enable = true;
@@ -225,7 +233,38 @@ in
   systemd.tmpfiles.rules = [
     "d /srv 0755 fleetcommand users -"
     "d /var/lib/fleetcommand/secrets 0700 root root -"
+    "d /var/lib/fleetcommand/ssh 0700 fleetcommand users -"
   ];
+
+  systemd.services.fleetcommand-ssh-keys = lib.mkIf (sshKeysUrl != null) {
+    description = "Fleetcommand appliance: refresh SSH authorized_keys";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = { Type = "oneshot"; };
+    path = [ pkgs.curl pkgs.coreutils ];
+
+    script = ''
+      set -euo pipefail
+
+      tmp="$(mktemp)"
+      ${pkgs.curl}/bin/curl -fsSL ${lib.escapeShellArg sshKeysUrl} -o "$tmp"
+      install -m 600 -o fleetcommand -g users "$tmp" /var/lib/fleetcommand/ssh/authorized_keys
+      rm -f "$tmp"
+    '';
+  };
+
+  systemd.timers.fleetcommand-ssh-keys = lib.mkIf (sshKeysUrl != null) {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "24h";
+    };
+  };
+
+  users.users.fleetcommand.openssh.authorizedKeys.keyFiles =
+    lib.mkIf (sshKeysUrl != null) [ "/var/lib/fleetcommand/ssh/authorized_keys" ];
 
   services.xserver.enable = false;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

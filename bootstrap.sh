@@ -76,6 +76,7 @@ TARGET_ETC="/etc/nixos"
 REPO_URL="https://github.com/roguenand/fleetcommand-nixos.git"
 SECRET_PATH="/var/lib/fleetcommand/secrets"
 AUTH_FILE="${SECRET_PATH}/tailscale-authkey"
+USER_PASSWORD_HASH_FILE="${SECRET_PATH}/fleetcommand.passwd"
 
 HOSTNAME=""
 LAN_IFACE=""
@@ -94,7 +95,7 @@ check_shell_and_root() {
 }
 
 check_dependencies() {
-  for bin in git nixos-generate-config nixos-rebuild; do
+  for bin in git nixos-generate-config nixos-rebuild openssl; do
     if ! have "$bin"; then
       die "Missing required command: $bin"
     fi
@@ -171,6 +172,42 @@ detect_lan_defaults() {
   LAN_SUBNET="$subnet"
 }
 
+prompt_user_password() {
+  mkdir -p "$SECRET_PATH"
+  chmod 700 "$SECRET_PATH"
+
+  if [[ -f "$USER_PASSWORD_HASH_FILE" ]]; then
+    local reuse="Y"
+    read_tty reuse "Password hash exists. Reuse it? [Y/n]: " "Y"
+    if [[ "$reuse" =~ ^[Yy]$ ]]; then
+      return
+    fi
+  fi
+
+  local pass1=""
+  local pass2=""
+
+  while true; do
+    read_secret_tty pass1 "Fleetcommand user password: "
+    read_secret_tty pass2 "Confirm password: "
+
+    if [[ -z "$pass1" ]]; then
+      echo "Password cannot be empty." >&2
+      continue
+    fi
+    if [[ "$pass1" != "$pass2" ]]; then
+      echo "Passwords do not match. Try again." >&2
+      continue
+    fi
+    break
+  done
+
+  local user_password_hash=""
+  user_password_hash="$(printf '%s' "$pass1" | openssl passwd -6 -stdin)"
+  printf '%s\n' "$user_password_hash" > "$USER_PASSWORD_HASH_FILE"
+  chmod 600 "$USER_PASSWORD_HASH_FILE"
+}
+
 ensure_host_nix() {
   if [[ ! -f host.nix ]]; then
     msg "host.nix not found, creating a new one."
@@ -190,6 +227,9 @@ ensure_host_nix() {
   networking.hostName = "${HOSTNAME}";
   time.timeZone = "America/New_York";
   zramSwap.memoryPercent = 50;
+
+  # Optional: pull SSH keys for the fleetcommand user from a URL
+  fleetcommand.sshKeysUrl = null;  # e.g. "https://github.com/youruser.keys"
 
   fleetcommand.vpn = {
     enable = true;
@@ -279,6 +319,7 @@ main() {
   ensure_repo
   generate_hw_config
   detect_lan_defaults
+  prompt_user_password
   ensure_host_nix
   edit_host_nix
   setup_tailscale_auth
