@@ -95,10 +95,12 @@ check_shell_and_root() {
 }
 
 check_dependencies() {
-  # git might not be on a fresh NixOS install, so provide it via nix-shell if needed
+  # git might not be on a fresh NixOS install, so install it if needed
   if ! have git; then
-    msg "git not found. Entering nix-shell with git available..."
-    exec nix-shell -p git --run "bash $0 $*"
+    msg "git not found. Installing git via nix-env..."
+    nix-env -iA nixos.git
+    msg "git installed. Please rerun the bootstrap command."
+    exit 0
   fi
 
   # Check remaining required commands
