@@ -95,16 +95,29 @@ check_shell_and_root() {
 }
 
 check_dependencies() {
-  # git might not be on a fresh NixOS install, so install it if needed
+  # git and openssl might not be on a fresh NixOS install, so install them if needed
+  local needs_install=false
+  local to_install=()
+
   if ! have git; then
-    msg "git not found. Installing git via nix-env..."
-    nix-env -iA nixos.git
-    msg "git installed. Please rerun the bootstrap command."
+    needs_install=true
+    to_install+=("nixos.git")
+  fi
+
+  if ! have openssl; then
+    needs_install=true
+    to_install+=("nixos.openssl")
+  fi
+
+  if [[ "$needs_install" = true ]]; then
+    msg "Installing missing dependencies: ${to_install[*]}"
+    nix-env -iA "${to_install[@]}"
+    msg "Dependencies installed. Please rerun the bootstrap command."
     exit 0
   fi
 
   # Check remaining required commands
-  for bin in nixos-generate-config nixos-rebuild openssl; do
+  for bin in nixos-generate-config nixos-rebuild; do
     if ! have "$bin"; then
       die "Missing required command: $bin (this should be present on NixOS)"
     fi
