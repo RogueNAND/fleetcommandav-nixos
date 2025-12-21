@@ -14,14 +14,12 @@ let
     ++ (optional (cfg.loginServer != null) ("--login-server=" + cfg.loginServer))
     ++ [
       "--hostname=${config.networking.hostName}"
+      "--qr"
     ]
     ++ routesFlags;
 
 
   upFlagsStr = concatStringsSep " " (map escapeShellArg upFlags);
-
-  authFile = "/var/lib/fleetcommand/secrets/tailscale-authkey";
-  authArg = "--authkey file:${escapeShellArg authFile}";
 in
 {
   options.fleetcommand.vpn = {
@@ -60,8 +58,6 @@ in
       else if (cfg.advertiseRoutes != []) then "server"
       else "client"; # harmless default, but you probably always do one of the above
 
-    services.tailscale.authKeyFile = authFile;
-
     # Run tailscale up deterministically each boot (with --reset fallback)
     systemd.services.fleetcommand-tailscale-up = {
       description = "Fleetcommand appliance: run tailscale up with config-derived flags";
@@ -75,24 +71,18 @@ in
       script = ''
         set -euo pipefail
 
-        ${optionalString (authFile != null) ''
-        AUTH=${escapeShellArg authFile}
-        if [ ! -s "$AUTH" ]; then
-          echo "Tailscale auth key not present at $AUTH; skipping tailscale up."
-          exit 0
-        fi
-        ''}
-
         for i in $(seq 1 10); do
           tailscale status >/dev/null 2>&1 && break || true
           sleep 1
         done
 
-        cmd="tailscale up ${authArg} ${upFlagsStr}"
+        cmd="tailscale up ${upFlagsStr}"
         echo "Running: $cmd"
+        echo "Scan the QR code below with your phone to authenticate:"
         if ! eval "$cmd"; then
           echo "tailscale up failed; retrying with --reset"
-          eval "tailscale up --reset ${authArg} ${upFlagsStr}"
+          echo "Scan the QR code below with your phone to authenticate:"
+          eval "tailscale up --reset ${upFlagsStr}"
         fi
       '';
     };

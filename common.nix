@@ -44,6 +44,7 @@ in
       uid = 1000;
       description = "fleetcommand";
       extraGroups = [ "networkmanager" "wheel" "docker" ];
+      openssh.authorizedKeys.keyFiles = lib.mkIf (sshKeysUrl != null) [ "/var/lib/fleetcommand/ssh/authorized_keys" ];
     }
     // lib.optionalAttrs (builtins.pathExists userPasswordHashFile) {
       hashedPasswordFile = userPasswordHashFile;
@@ -261,9 +262,6 @@ in
       OnUnitActiveSec = "24h";
     };
   };
-
-  users.users.fleetcommand.openssh.authorizedKeys.keyFiles =
-    lib.mkIf (sshKeysUrl != null) [ "/var/lib/fleetcommand/ssh/authorized_keys" ];
 
   services.xserver.enable = false;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

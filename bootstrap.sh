@@ -75,7 +75,6 @@ run_in_tty() {
 TARGET_ETC="/etc/nixos"
 REPO_URL="https://github.com/RogueNAND/fleetcommand-nixos.git"
 SECRET_PATH="/var/lib/fleetcommand/secrets"
-AUTH_FILE="${SECRET_PATH}/tailscale-authkey"
 USER_PASSWORD_HASH_FILE="${SECRET_PATH}/fleetcommand.passwd"
 
 HOSTNAME=""
@@ -287,27 +286,6 @@ edit_host_nix() {
   fi
 }
 
-setup_tailscale_auth() {
-  mkdir -p "$SECRET_PATH"
-  chmod 700 "$SECRET_PATH"
-
-  if [[ ! -f "$AUTH_FILE" ]]; then
-    echo
-    msg "Tailscale/Headscale auth key not found for this host."
-    echo "(You can generate a one-time key from the admin panel.)"
-    local AUTH_KEY=""
-    read_secret_tty AUTH_KEY "Auth key: "
-
-    if [[ -z "$AUTH_KEY" ]]; then
-      echo "No auth key entered; Tailscale will not auto-connect." >&2
-    else
-      printf '%s\n' "$AUTH_KEY" > "$AUTH_FILE"
-      chmod 600 "$AUTH_FILE"
-      msg "Auth key stored at $AUTH_FILE for one-time use."
-    fi
-  fi
-}
-
 rebuild_system() {
   msg "Running nixos-rebuild switch for ${HOSTNAME}..."
   nixos-rebuild switch -I nixos-config="${TARGET_ETC}/configuration.nix"
@@ -327,10 +305,10 @@ check_tailscale() {
   if [[ "$ok" -eq 1 ]]; then
     msg "Tailscale appears up (IPv4: $(tailscale ip -4))."
   else
-    msg "Tailscale does not appear to be up yet."
-    msg "Try:"
-    msg "  sudo tailscale status"
-    msg "  sudo tailscale up"
+    msg "Tailscale is waiting for authentication."
+    msg "A QR code should be displayed above - scan it with your phone to authenticate."
+    msg "Or check the login URL with:"
+    msg "  sudo journalctl -u fleetcommand-tailscale-up -n 50"
   fi
 }
 
@@ -344,7 +322,6 @@ main() {
   prompt_user_password
   ensure_host_nix
   edit_host_nix
-  setup_tailscale_auth
   rebuild_system
   check_tailscale
 
