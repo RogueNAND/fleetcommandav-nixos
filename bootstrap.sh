@@ -152,10 +152,11 @@ ensure_repo() {
   else
     msg "/etc/nixos is already a git repo. Manually run git pull to update."
     local cont
-    read_tty cont "Continue? [y/N]: " "N"
-    if [[ "$cont" =~ ^[Yy]$ ]]; then
-      msg "Continuing without pulling. Update manually if needed."
+    read_tty cont "Continue? [Y/n]: " "Y"
+    if [[ "$cont" =~ ^[Nn]$ ]]; then
+      exit 0
     fi
+    msg "Continuing without pulling. Update manually if needed."
   fi
 
   cd "$TARGET_ETC"
