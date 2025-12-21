@@ -14,5 +14,5 @@ Opinionated NixOS appliance configuration
 - Run bootstrap.sh (this repository)
 
 ```bash
-curl -L https://raw.githubusercontent.com/roguenand/fleetcommand-nixos/main/bootstrap.sh | sudo bash -s
+curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/bootstrap.sh | sudo bash -s
 ```

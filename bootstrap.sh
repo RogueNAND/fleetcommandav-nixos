@@ -73,7 +73,7 @@ run_in_tty() {
 }
 
 TARGET_ETC="/etc/nixos"
-REPO_URL="https://github.com/roguenand/fleetcommand-nixos.git"
+REPO_URL="https://github.com/RogueNAND/fleetcommand-nixos.git"
 SECRET_PATH="/var/lib/fleetcommand/secrets"
 AUTH_FILE="${SECRET_PATH}/tailscale-authkey"
 USER_PASSWORD_HASH_FILE="${SECRET_PATH}/fleetcommand.passwd"
