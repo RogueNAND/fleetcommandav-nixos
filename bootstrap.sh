@@ -95,9 +95,16 @@ check_shell_and_root() {
 }
 
 check_dependencies() {
-  for bin in git nixos-generate-config nixos-rebuild openssl; do
+  # git might not be on a fresh NixOS install, so provide it via nix-shell if needed
+  if ! have git; then
+    msg "git not found. Entering nix-shell with git available..."
+    exec nix-shell -p git --run "bash $0 $*"
+  fi
+
+  # Check remaining required commands
+  for bin in nixos-generate-config nixos-rebuild openssl; do
     if ! have "$bin"; then
-      die "Missing required command: $bin"
+      die "Missing required command: $bin (this should be present on NixOS)"
     fi
   done
 }
