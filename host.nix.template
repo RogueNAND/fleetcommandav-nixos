@@ -8,6 +8,8 @@
   networking.hostName = "${HOSTNAME}";
   time.timeZone = "America/New_York";
   zramSwap.memoryPercent = 50;
+  fleetcommand.disablePowerButton = false;
+  fleetcommand.volatileJournald = true;  # RAM-only logging
 
   # Optional: pull SSH keys for the fleetcommand user from a URL
   fleetcommand.sshKeysUrl = null;  # e.g. "https://github.com/youruser.keys";

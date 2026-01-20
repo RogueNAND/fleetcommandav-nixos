@@ -2,7 +2,8 @@
 { config, pkgs, lib, ... }:  # lib is for cockpit bug workaround
 
 let
-  sshKeysUrl = config.fleetcommand.sshKeysUrl or null;
+  cfg = config.fleetcommand;
+  sshKeysUrl = cfg.sshKeysUrl or null;
   userPasswordHashFile = "/var/lib/fleetcommand/secrets/fleetcommand.passwd";
 in
 {
@@ -10,6 +11,18 @@ in
     type = lib.types.nullOr lib.types.str;
     default = null;
     description = "URL to fetch SSH authorized_keys for the fleetcommand user.";
+  };
+
+  options.fleetcommand.disablePowerButton = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Whether to ignore the power button (prevent accidental shutdowns).";
+  };
+
+  options.fleetcommand.volatileJournald = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Store journald logs in RAM only (volatile storage with 32M limit).";
   };
 
   config = {
@@ -69,7 +82,7 @@ in
 
 
     # Log to ram
-    services.journald = {
+    services.journald = lib.mkIf cfg.volatileJournald {
       storage = "volatile";
       extraConfig = ''
         RuntimeMaxUse=32M
@@ -95,8 +108,8 @@ in
 
 
     # Disable power button
-    services.logind.settings.Login = {
-      HandlePowerKey="ignore";
+    services.logind.settings.Login = lib.mkIf cfg.disablePowerButton {
+      HandlePowerKey = "ignore";
     };
 
     # Disable sleep / hibernate
