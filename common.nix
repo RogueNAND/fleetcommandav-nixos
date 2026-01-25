@@ -223,15 +223,15 @@ in
 
     services.cockpit = {
       enable = true;
-      port = 9090;
+      port = 9099;
 
       settings.WebService = {
         AllowUnencrypted = true;
 
         # Work around the NixOS origin bug: explicitly allow these URLs
         Origins = lib.mkForce ''
-          http://localhost:9090
-          https://localhost:9090
+          http://localhost:9099
+          https://localhost:9099
         '';
       };
     };
