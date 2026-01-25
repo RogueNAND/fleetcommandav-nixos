@@ -224,6 +224,9 @@ edit_host_nix() {
 
 rebuild_system() {
   msg "Running nixos-rebuild switch for ${HOSTNAME}..."
+  # Clear any stale transient unit from a previous interrupted rebuild
+  systemctl stop nixos-rebuild-switch-to-configuration.service 2>/dev/null || true
+  systemctl reset-failed nixos-rebuild-switch-to-configuration.service 2>/dev/null || true
   nixos-rebuild switch -I nixos-config="${TARGET_ETC}/configuration.nix"
 }
 
