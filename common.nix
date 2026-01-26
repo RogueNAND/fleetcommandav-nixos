@@ -52,16 +52,13 @@ in
     ############
 
 
-    users.users.fleetcommand =
-      {
-        isNormalUser = true;
-        uid = 1000;
-        description = "fleetcommand";
-        extraGroups = [ "networkmanager" "wheel" "docker" ];
-      }
-      // lib.optionalAttrs (builtins.pathExists userPasswordHashFile) {
-        hashedPasswordFile = userPasswordHashFile;
-      };
+    users.users.fleetcommand = {
+      isNormalUser = true;
+      uid = 1000;
+      description = "fleetcommand";
+      extraGroups = [ "networkmanager" "wheel" "docker" ];
+      hashedPasswordFile = userPasswordHashFile;
+    };
 
     security.sudo.enable = true;
     security.sudo.wheelNeedsPassword = true;
