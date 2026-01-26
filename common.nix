@@ -247,6 +247,35 @@ in
       btrfs-progs  # btrfs management tools
     ];
 
+    # Tailscale authentication reminder on login (fallback if wall broadcast missed)
+    programs.bash.interactiveShellInit = ''
+      # Tailscale authentication reminder (runs once per shell session)
+      _fleetcommand_check_tailscale() {
+        [ -n "$_FLEETCOMMAND_TS_CHECKED" ] && return
+        export _FLEETCOMMAND_TS_CHECKED=1
+
+        command -v tailscale >/dev/null 2>&1 || return
+
+        # Check if tailscale has an IP (authenticated) or not
+        if ! tailscale ip -4 >/dev/null 2>&1; then
+          echo ""
+          echo -e "\e[33m============================================\e[0m"
+          echo -e "\e[33m   TAILSCALE AUTHENTICATION REQUIRED\e[0m"
+          echo -e "\e[33m============================================\e[0m"
+          echo ""
+          echo "This device needs to authenticate with Tailscale."
+          echo ""
+          echo "To see the QR code, run:"
+          echo "  sudo journalctl -u fleetcommand-tailscale-up -n 60"
+          echo ""
+          echo "Or re-trigger authentication:"
+          echo "  sudo tailscale up --qr"
+          echo ""
+        fi
+      }
+      _fleetcommand_check_tailscale
+    '';
+
     services.cockpit = {
       enable = true;
       port = 9099;

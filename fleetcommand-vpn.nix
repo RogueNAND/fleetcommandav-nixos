@@ -65,8 +65,12 @@ in
       wants = [ "network-online.target" "tailscaled.service" ];
       wantedBy = [ "multi-user.target" ];
 
-      serviceConfig.Type = "oneshot";
-      path = [ pkgs.tailscale pkgs.coreutils ];
+      serviceConfig = {
+        Type = "oneshot";
+        StandardOutput = "journal+console";
+        StandardError = "journal+console";
+      };
+      path = [ pkgs.tailscale pkgs.coreutils pkgs.util-linux ];
 
       script = ''
         set -euo pipefail
@@ -76,13 +80,37 @@ in
           sleep 1
         done
 
+        # Check if already authenticated
+        if tailscale ip -4 >/dev/null 2>&1; then
+          echo "Tailscale already authenticated."
+          exit 0
+        fi
+
         cmd="tailscale up ${upFlagsStr}"
         echo "Running: $cmd"
-        echo "Scan the QR code below with your phone to authenticate:"
-        if ! eval "$cmd"; then
+
+        # Capture QR output and broadcast to all terminals
+        qr_output=$(eval "$cmd" 2>&1) || {
           echo "tailscale up failed; retrying with --reset"
-          echo "Scan the QR code below with your phone to authenticate:"
-          eval "tailscale up --reset ${upFlagsStr}"
+          qr_output=$(eval "tailscale up --reset ${upFlagsStr}" 2>&1) || true
+        }
+
+        # Display to console/journal
+        echo "$qr_output"
+
+        # Broadcast to all logged-in users via wall (if auth needed)
+        if ! tailscale ip -4 >/dev/null 2>&1; then
+          {
+            echo ""
+            echo "============================================"
+            echo "   TAILSCALE AUTHENTICATION REQUIRED"
+            echo "============================================"
+            echo ""
+            echo "Scan the QR code below or visit the URL to authenticate:"
+            echo ""
+            echo "$qr_output"
+            echo ""
+          } | wall
         fi
       '';
     };
