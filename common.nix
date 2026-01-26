@@ -204,11 +204,39 @@ in
       enable = true;
       enableOnBoot = true;
       autoPrune.enable = true;
+      liveRestore = true;  # Containers survive daemon restarts
 
-      # Log to ram
       logDriver = "journald";
       daemon.settings = {
-        storage-driver = "overlay2";
+        storage-driver = "btrfs";
+        "shutdown-timeout" = 15;  # Grace period for container shutdown
+      };
+    };
+
+    # Make docker.service more resilient
+    systemd.services.docker.serviceConfig = {
+      Restart = "on-failure";
+      RestartSec = "5s";
+    };
+
+    # Monthly btrfs scrub to detect/repair filesystem errors
+    systemd.services.btrfs-scrub = {
+      description = "Btrfs scrub on root filesystem";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.btrfs-progs}/bin/btrfs scrub start -B /";
+        IOSchedulingClass = "idle";
+        CPUSchedulingPolicy = "idle";
+      };
+    };
+
+    systemd.timers.btrfs-scrub = {
+      description = "Monthly btrfs scrub";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "monthly";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
       };
     };
 
@@ -218,7 +246,9 @@ in
       tailscale
       iwd  # wifi tools
       cockpit
-      pkgs.ethtool
+      pkgs
+      ethtool
+      btrfs-progs  # btrfs management tools
     ];
 
     services.cockpit = {
