@@ -1,27 +1,32 @@
 # fleetcommand-nixos
 Opinionated NixOS appliance configuration
 
-# NixOS Installation (via GUI installer)
-- User setup
-  - Set admin password
-  - Create a default user
-- No desktop environment
-- Allow unfree software
-- Setup disk
-  - No swap partition (zram is used for swap)
+## Fresh Install (from NixOS installer ISO)
 
-# Configure OS
-- Run bootstrap.sh (this repository)
-
-## Basic usage
+Boot the NixOS minimal ISO and run:
 
 ```bash
-curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/bootstrap.sh | sudo bash -s
+curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/bootstrap.sh | sudo bash
 ```
 
-## Advanced usage
+The script will:
+- Prompt for target disk (btrfs with @, @nix, @home subvolumes)
+- Partition and format the disk
+- Clone the configuration and run `nixos-install`
 
-Specify hostname:
+## Reconfigure (existing NixOS system)
+
+Run the same command on an already-installed system:
+
+```bash
+curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/bootstrap.sh | sudo bash
+```
+
+The script auto-detects the environment and will clone the config if necessary to `/etc/nixos` and run `nixos-rebuild switch`.
+
+## Options
+
+Specify hostname via argument:
 
 ```bash
 curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/bootstrap.sh | sudo bash -s -- myhost
@@ -29,4 +34,4 @@ curl -L https://raw.githubusercontent.com/RogueNAND/fleetcommand-nixos/main/boot
 
 ## Authentication
 
-After the system rebuild completes, Tailscale will display a QR code in the terminal. Scan this QR code with your phone to authenticate the device to your Tailnet.
+After installation/rebuild, Tailscale will display a QR code in the terminal. Scan it to authenticate the device to your Tailnet.
